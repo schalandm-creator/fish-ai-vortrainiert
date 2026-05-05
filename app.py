@@ -1,101 +1,89 @@
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
+import torch
+from transformers import DetrImageProcessor, DetrForSegmentation
 import numpy as np
-from transformers import pipeline
 import json
 import time
 
-st.set_page_config(
-    page_title="FischID • Next-Gen",
-    page_icon="🐟",
-    layout="centered",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="FischID • DETR Pro", page_icon="🐟", layout="centered")
 
-# === EXTREM FANCY CSS ===
+# === KRASS MODERNES DESIGN ===
 st.markdown("""
-    <style>
-    .main {background: linear-gradient(135deg, #0a0f1c 0%, #1a2338 100%); color: #e0f2fe;}
-    h1 {font-size: 3.8rem; background: linear-gradient(90deg, #22d3ee, #a855f7, #ec4899);
-         -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 0;}
-    .subtitle {text-align: center; color: #94a3b8; font-size: 1.4rem; margin-bottom: 2rem;}
-    .card {background: rgba(255,255,255,0.06); backdrop-filter: blur(12px); border-radius: 20px; 
-           padding: 1.8rem; border: 1px solid rgba(255,255,255,0.1);}
-    .result {background: linear-gradient(90deg, #10b981, #34d399); color: white; border-radius: 18px; padding: 1.5rem;}
-    .stButton>button {background: linear-gradient(90deg, #6366f1, #a855f7); color: white; 
-                      border-radius: 14px; height: 3.2rem; font-size: 1.1rem; font-weight: bold;}
-    </style>
+<style>
+    .main {background: linear-gradient(135deg, #020617 0%, #1e2937 100%); color: #e0f2fe;}
+    h1 {font-size: 4rem; background: linear-gradient(90deg, #22d3ee, #c026d3, #f472b6);
+         -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center;}
+    .card {background: rgba(255,255,255,0.07); backdrop-filter: blur(16px); border-radius: 24px; 
+           padding: 2rem; border: 1px solid rgba(148,163,184,0.2);}
+    .result-box {background: linear-gradient(90deg, #10b981, #34d399); color: white; border-radius: 20px; padding: 1.5rem;}
+</style>
 """, unsafe_allow_html=True)
 
-st.title("FischID")
-st.markdown('<p class="subtitle">Next-Gen KI Fisch-Erkennung • Made for Excellence</p>', unsafe_allow_html=True)
+st.title("FischID • DETR")
+st.markdown("**DETR Fish Segmentation • Detection + Masken • Next Level KI**")
 
 # Modell laden
-@st.cache_resource(show_spinner="Lade hochmodernes KI-Modell...")
-def load_model():
-    return pipeline("image-classification", 
-                    model="google/vit-base-patch16-224", 
-                    top_k=8)
+@st.cache_resource(show_spinner="Lade DETR Fish Segmentation Modell...")
+def load_detr_model():
+    processor = DetrImageProcessor.from_pretrained("FriedParrot/fish-segmentation-simple")
+    model = DetrForSegmentation.from_pretrained("FriedParrot/fish-segmentation-simple")
+    return processor, model
 
-classifier = load_model()
+processor, model = load_detr_model()
 
 # Daten
 with open("fish_data.json", "r", encoding="utf-8") as f:
     fish_data = json.load(f)
 
-# Mapping
-fish_mapping = {
-    "Pike": "Hecht", "Zander": "Zander", "Perch": "Flussbarsch", "Bass": "Flussbarsch",
-    "Carp": "Karpfen", "Trout": "Meerforelle", "Bream": "Brassen", "Catfish": "Wels",
-    "Eel": "Aal", "Flatfish": "Scholle", "Roach": "Rotauge"
-}
+# Kamera / Upload
+st.subheader("📸 Foto machen oder hochladen")
+col1, col2 = st.columns(2)
+with col1:
+    camera = st.camera_input("Kamera")
+with col2:
+    uploaded = st.file_uploader("Bild hochladen", type=["jpg", "jpeg", "png"])
 
-st.subheader("📸 Mach ein Foto oder lade eines hoch")
+if camera or uploaded:
+    image = Image.open(camera if camera else uploaded).convert("RGB")
+    st.image(image, caption="Eingabebild", use_column_width=True)
 
-c1, c2 = st.columns([1, 1])
-with c1:
-    camera = st.camera_input("Kamera", key="cam")
-with c2:
-    upload = st.file_uploader("Datei hochladen", type=["jpg", "jpeg", "png"])
-
-image = None
-if camera:
-    image = Image.open(camera).convert("RGB")
-elif upload:
-    image = Image.open(upload).convert("RGB")
-
-if image:
-    st.image(image, use_column_width=True, caption="Dein Foto")
-
-    with st.spinner("🚀 KI analysiert mit modernster Vision-Technologie..."):
+    with st.spinner("🧠 DETR analysiert Fisch (Detection + Segmentation)..."):
         start = time.time()
-        results = classifier(image)
+        inputs = processor(images=image, return_tensors="pt")
+        outputs = model(**inputs)
+
+        # Post-processing
+        target_sizes = torch.tensor([image.size[::-1]])
+        results = processor.post_process_segmentation(outputs, target_sizes=target_sizes)[0]
+
         duration = time.time() - start
 
-    top = results[0]
-    raw_label = top['label'].replace("_", " ").title()
-    confidence = top['score'] * 100
+    # Einfache Anzeige der besten Erkennung
+    if len(results["labels"]) > 0:
+        scores = results["scores"].detach().numpy()
+        best_idx = scores.argmax()
+        score = scores[best_idx] * 100
+        label_id = results["labels"][best_idx].item()
+        # Label Mapping (DETR verwendet oft COCO-ähnliche Labels)
+        label_map = {0: "Fisch", 1: "Hecht", 2: "Zander", 3: "Karpfen"}  # erweiterbar
+        fish_name = label_map.get(label_id, "Unbekannter Fisch")
 
-    fish_name = fish_mapping.get(raw_label, raw_label)
-
-    if confidence >= 78:
-        st.markdown('<div class="result">', unsafe_allow_html=True)
-        st.success(f"**{fish_name}** erkannt!")
-        st.success(f"Sicherheit: **{confidence:.1f}%**")
-        st.caption(f"Analyse in {duration:.2f} Sekunden")
+        st.markdown('<div class="result-box">', unsafe_allow_html=True)
+        st.success(f"**{fish_name}** erkannt")
+        st.success(f"**Konfidenz:** {score:.1f}% • Zeit: {duration:.2f}s")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        bundesland = st.selectbox("🌍 Bundesland", options=list(fish_data["bundeslaender"].keys()))
-
+        # Bundesland & Regeln
+        bundesland = st.selectbox("🌍 Bundesland", list(fish_data["bundeslaender"].keys()))
         info = fish_data["bundeslaender"][bundesland].get(fish_name, {})
+        
         if info:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Mindestmaß", f"{info.get('mindestmass', 0)} cm")
-            with col2:
-                st.metric("Schonzeit", info.get('schonzeit', "Keine"))
+            c1, c2 = st.columns(2)
+            with c1: st.metric("Mindestmaß", f"{info.get('mindestmass', 0)} cm")
+            with c2: st.metric("Schonzeit", info.get('schonzeit', "Keine"))
     else:
-        st.error(f"Die KI ist sich nur zu {confidence:.1f}% sicher. Versuche ein besseres Foto (gutes Licht, ganzer Fisch von der Seite).")
+        st.warning("Kein Fisch erkannt. Versuche ein klareres Foto.")
 
 st.markdown("---")
-st.caption("FischID • Powered by Google ViT + Hugging Face • Futuristisches Design für Top-Projekte")
+st.caption("FischID DETR Pro • Fish Segmentation + Detection • Futuristisches Schulprojekt-Design")
