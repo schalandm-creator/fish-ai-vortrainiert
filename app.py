@@ -4,14 +4,13 @@ from transformers import pipeline
 import json
 import time
 
-# ====================== MODERNES & ELEGANTE DESIGN ======================
 st.set_page_config(
     page_title="FischID",
     page_icon="🐟",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    layout="centered"
 )
 
+# Sehr sauberes, modernes Design
 st.markdown("""
 <style>
     .main {
@@ -19,18 +18,17 @@ st.markdown("""
         color: #e0f2fe;
     }
     h1 {
-        font-size: 3.8rem;
-        background: linear-gradient(90deg, #67e8f9, #c084fc, #f472b6);
+        font-size: 3.7rem;
+        background: linear-gradient(90deg, #67e8f9, #c084fc);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        margin-bottom: 0.2rem;
     }
     .subtitle {
         text-align: center;
         color: #94a3b8;
-        font-size: 1.45rem;
-        margin-bottom: 2.5rem;
+        font-size: 1.4rem;
+        margin-bottom: 2rem;
     }
     .result {
         background: linear-gradient(90deg, #10b981, #34d399);
@@ -39,20 +37,13 @@ st.markdown("""
         padding: 2rem;
         margin: 1.5rem 0;
     }
-    .stButton>button {
-        background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-        color: white;
-        border-radius: 12px;
-        height: 3.2rem;
-        font-weight: 600;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("FischID")
 st.markdown('<p class="subtitle">Intelligente Fisch-Erkennung</p>', unsafe_allow_html=True)
 
-# ====================== MODELL LADEN ======================
+# ====================== MODELL ======================
 @st.cache_resource(show_spinner="Lade KI-Modell...")
 def load_model():
     return pipeline(
@@ -79,36 +70,34 @@ with col2:
 if camera or uploaded:
     image = Image.open(camera if camera else uploaded).convert("RGB")
     
-    # Bild leicht verbessern
+    # Bild verbessern
     enhancer = ImageEnhance.Contrast(image)
     image = enhancer.enhance(1.25)
     
     st.image(image, caption="Dein Foto", use_column_width=True)
 
-    # Schöner Fortschritt
+    # Schöner Ladebalken
     progress_bar = st.progress(0)
-    status_text = st.empty()
-    start_time = time.time()
+    status = st.empty()
+    start = time.time()
 
     for i in range(100):
-        time.sleep(0.014)
+        time.sleep(0.015)
         progress_bar.progress(i + 1)
-        elapsed = time.time() - start_time
-        status_text.text(f"Analyse läuft... {elapsed:.2f} s")
+        status.text(f"Analyse läuft... {time.time() - start:.2f} s")
 
     # KI-Analyse
-    with st.spinner("KI analysiert das Bild..."):
+    with st.spinner("KI wertet aus..."):
         results = classifier(image)
 
     top = results[0]
     label = top['label'].replace("_", " ").title()
     confidence = top['score'] * 100
 
-    # Mapping auf deutsche Namen
     mapping = {
         "Pike": "Hecht", "Zander": "Zander", "Perch": "Flussbarsch",
         "Carp": "Karpfen", "Trout": "Meerforelle", "Bream": "Brassen",
-        "Catfish": "Wels", "Eel": "Aal", "Flatfish": "Scholle", "Roach": "Rotauge"
+        "Catfish": "Wels", "Eel": "Aal"
     }
     fish_name = mapping.get(label, label)
 
@@ -118,18 +107,14 @@ if camera or uploaded:
         st.success(f"**Sicherheit:** {confidence:.1f}%")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        bundesland = st.selectbox("🌍 Bundesland auswählen", 
-                                  options=list(fish_data["bundeslaender"].keys()))
+        bundesland = st.selectbox("🌍 Bundesland", list(fish_data["bundeslaender"].keys()))
 
         info = fish_data["bundeslaender"][bundesland].get(fish_name, {})
         if info:
             c1, c2 = st.columns(2)
-            with c1:
-                st.metric("Mindestmaß", f"{info.get('mindestmass', 0)} cm")
-            with c2:
-                st.metric("Schonzeit", info.get('schonzeit', "Keine"))
+            with c1: st.metric("Mindestmaß", f"{info.get('mindestmass', 0)} cm")
+            with c2: st.metric("Schonzeit", info.get('schonzeit', "Keine"))
     else:
-        st.warning(f"Nur {confidence:.1f}% Sicherheit. Bitte ein klareres Foto versuchen.")
+        st.warning(f"Nur {confidence:.1f}% Sicherheit. Bitte neues Foto versuchen.")
 
-st.markdown("---")
-st.caption("FischID • Modern • Praktisch • Stabil")
+st.caption("FischID • Stabil & Modern")
