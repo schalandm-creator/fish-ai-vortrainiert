@@ -1,88 +1,101 @@
 import streamlit as st
 from PIL import Image
+import numpy as np
 from transformers import pipeline
 import json
+import time
 
 st.set_page_config(
-    page_title="FischID Pro",
+    page_title="FischID • Next-Gen",
     page_icon="🐟",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
-# Sehr modernes Design
+# === EXTREM FANCY CSS ===
 st.markdown("""
     <style>
-    .main {background: linear-gradient(135deg, #0f172a 0%, #1e2937 100%); color: #e2e8f0;}
-    h1 {font-size: 3.4rem; background: linear-gradient(90deg, #60a5fa, #c084fc); 
-         -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center;}
-    .result-card {background: rgba(16, 185, 129, 0.15); border: 2px solid #10b981; 
-                  border-radius: 20px; padding: 1.8rem; margin: 1rem 0;}
+    .main {background: linear-gradient(135deg, #0a0f1c 0%, #1a2338 100%); color: #e0f2fe;}
+    h1 {font-size: 3.8rem; background: linear-gradient(90deg, #22d3ee, #a855f7, #ec4899);
+         -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin: 0;}
+    .subtitle {text-align: center; color: #94a3b8; font-size: 1.4rem; margin-bottom: 2rem;}
+    .card {background: rgba(255,255,255,0.06); backdrop-filter: blur(12px); border-radius: 20px; 
+           padding: 1.8rem; border: 1px solid rgba(255,255,255,0.1);}
+    .result {background: linear-gradient(90deg, #10b981, #34d399); color: white; border-radius: 18px; padding: 1.5rem;}
+    .stButton>button {background: linear-gradient(90deg, #6366f1, #a855f7); color: white; 
+                      border-radius: 14px; height: 3.2rem; font-size: 1.1rem; font-weight: bold;}
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🐟 FischID Pro")
-st.markdown("**Hochpräzise KI-Fisch-Erkennung**")
+st.title("FischID")
+st.markdown('<p class="subtitle">Next-Gen KI Fisch-Erkennung • Made for Excellence</p>', unsafe_allow_html=True)
 
-# Modell (stabileres allgemeines Modell + gutes Fish-Modell als Fallback)
-@st.cache_resource(show_spinner="Lade KI-Modell...")
-def load_classifier():
-    try:
-        # Versuch mit einem stabilen Fish-Modell
-        return pipeline("image-classification", 
-                       model="google/vit-base-patch16-224", 
-                       top_k=5)
-    except:
-        return pipeline("image-classification", model="microsoft/resnet-50", top_k=5)
+# Modell laden
+@st.cache_resource(show_spinner="Lade hochmodernes KI-Modell...")
+def load_model():
+    return pipeline("image-classification", 
+                    model="google/vit-base-patch16-224", 
+                    top_k=8)
 
-classifier = load_classifier()
+classifier = load_model()
 
-# fish_data.json laden
+# Daten
 with open("fish_data.json", "r", encoding="utf-8") as f:
     fish_data = json.load(f)
 
-st.subheader("📸 Foto aufnehmen oder hochladen")
+# Mapping
+fish_mapping = {
+    "Pike": "Hecht", "Zander": "Zander", "Perch": "Flussbarsch", "Bass": "Flussbarsch",
+    "Carp": "Karpfen", "Trout": "Meerforelle", "Bream": "Brassen", "Catfish": "Wels",
+    "Eel": "Aal", "Flatfish": "Scholle", "Roach": "Rotauge"
+}
 
-col1, col2 = st.columns(2)
-with col1:
-    camera_photo = st.camera_input("Direkt mit Kamera")
-with col2:
-    uploaded_file = st.file_uploader("Foto hochladen", type=["jpg", "jpeg", "png"])
+st.subheader("📸 Mach ein Foto oder lade eines hoch")
 
-if camera_photo is not None or uploaded_file is not None:
-    image = Image.open(camera_photo if camera_photo else uploaded_file).convert("RGB")
-    st.image(image, caption="Dein Fisch", use_column_width=True)
+c1, c2 = st.columns([1, 1])
+with c1:
+    camera = st.camera_input("Kamera", key="cam")
+with c2:
+    upload = st.file_uploader("Datei hochladen", type=["jpg", "jpeg", "png"])
 
-    with st.spinner("🔍 Analysiere mit KI..."):
+image = None
+if camera:
+    image = Image.open(camera).convert("RGB")
+elif upload:
+    image = Image.open(upload).convert("RGB")
+
+if image:
+    st.image(image, use_column_width=True, caption="Dein Foto")
+
+    with st.spinner("🚀 KI analysiert mit modernster Vision-Technologie..."):
+        start = time.time()
         results = classifier(image)
+        duration = time.time() - start
 
     top = results[0]
-    label = top['label'].replace("_", " ").title()
+    raw_label = top['label'].replace("_", " ").title()
     confidence = top['score'] * 100
 
-    # Mapping auf deutsche Fischarten
-    mapping = {
-        "Pike": "Hecht", "Zander": "Zander", "Perch": "Flussbarsch", "Carp": "Karpfen",
-        "Trout": "Meerforelle", "Bream": "Brassen", "Catfish": "Wels", "Eel": "Aal",
-        "Flatfish": "Scholle", "Roach": "Rotauge"
-    }
-    fish_name = mapping.get(label, label)
+    fish_name = fish_mapping.get(raw_label, raw_label)
 
-    if confidence >= 75:
-        st.markdown('<div class="result-card">', unsafe_allow_html=True)
-        st.success(f"**Erkannte Art:** {fish_name}")
-        st.success(f"**Sicherheit:** {confidence:.1f}%")
+    if confidence >= 78:
+        st.markdown('<div class="result">', unsafe_allow_html=True)
+        st.success(f"**{fish_name}** erkannt!")
+        st.success(f"Sicherheit: **{confidence:.1f}%**")
+        st.caption(f"Analyse in {duration:.2f} Sekunden")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        bundesland = st.selectbox("🌍 Bundesland", list(fish_data["bundeslaender"].keys()))
+        bundesland = st.selectbox("🌍 Bundesland", options=list(fish_data["bundeslaender"].keys()))
 
         info = fish_data["bundeslaender"][bundesland].get(fish_name, {})
         if info:
-            c1, c2 = st.columns(2)
-            with c1:
-                st.metric("**Mindestmaß**", f"{info.get('mindestmass', 0)} cm")
-            with c2:
-                st.metric("**Schonzeit**", info.get('schonzeit', "Keine"))
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Mindestmaß", f"{info.get('mindestmass', 0)} cm")
+            with col2:
+                st.metric("Schonzeit", info.get('schonzeit', "Keine"))
     else:
-        st.warning(f"Nur {confidence:.1f}% sicher. Bitte ein klareres Foto versuchen.")
+        st.error(f"Die KI ist sich nur zu {confidence:.1f}% sicher. Versuche ein besseres Foto (gutes Licht, ganzer Fisch von der Seite).")
 
-st.caption("FischID Pro • Vortrainiertes Modell • Modernes Schulprojekt-Design")
+st.markdown("---")
+st.caption("FischID • Powered by Google ViT + Hugging Face • Futuristisches Design für Top-Projekte")
