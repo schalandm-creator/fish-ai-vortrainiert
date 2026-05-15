@@ -4,33 +4,60 @@ from transformers import pipeline
 import json
 import time
 
+# ====================== MODERNES & ELEGANTE DESIGN ======================
 st.set_page_config(
     page_title="FischID",
     page_icon="🐟",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
-# Modernes Design
 st.markdown("""
 <style>
-    .main {background: linear-gradient(135deg, #0f172a 0%, #1e2937 100%); color: #e0f2fe;}
-    h1 {font-size: 3.8rem; background: linear-gradient(90deg, #67e8f9, #c084fc);
-         -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center;}
-    .subtitle {text-align: center; color: #94a3b8; font-size: 1.4rem;}
-    .result {background: linear-gradient(90deg, #10b981, #34d399); color: white; 
-             border-radius: 20px; padding: 2rem; margin: 1.5rem 0;}
+    .main {
+        background: linear-gradient(135deg, #0f172a 0%, #1e2937 100%);
+        color: #e0f2fe;
+    }
+    h1 {
+        font-size: 3.8rem;
+        background: linear-gradient(90deg, #67e8f9, #c084fc, #f472b6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-bottom: 0.2rem;
+    }
+    .subtitle {
+        text-align: center;
+        color: #94a3b8;
+        font-size: 1.45rem;
+        margin-bottom: 2.5rem;
+    }
+    .result {
+        background: linear-gradient(90deg, #10b981, #34d399);
+        color: white;
+        border-radius: 20px;
+        padding: 2rem;
+        margin: 1.5rem 0;
+    }
+    .stButton>button {
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+        color: white;
+        border-radius: 12px;
+        height: 3.2rem;
+        font-weight: 600;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("FischID")
 st.markdown('<p class="subtitle">Intelligente Fisch-Erkennung</p>', unsafe_allow_html=True)
 
-# ====================== MODELL ======================
+# ====================== MODELL LADEN ======================
 @st.cache_resource(show_spinner="Lade KI-Modell...")
 def load_model():
     return pipeline(
-        "image-classification", 
-        model="google/vit-base-patch16-224", 
+        "image-classification",
+        model="google/vit-base-patch16-224",
         top_k=6
     )
 
@@ -52,6 +79,7 @@ with col2:
 if camera or uploaded:
     image = Image.open(camera if camera else uploaded).convert("RGB")
     
+    # Bild leicht verbessern
     enhancer = ImageEnhance.Contrast(image)
     image = enhancer.enhance(1.25)
     
@@ -59,43 +87,49 @@ if camera or uploaded:
 
     # Schöner Fortschritt
     progress_bar = st.progress(0)
-    status = st.empty()
-    start = time.time()
+    status_text = st.empty()
+    start_time = time.time()
 
     for i in range(100):
         time.sleep(0.014)
         progress_bar.progress(i + 1)
-        status.text(f"KI analysiert... {time.time() - start:.2f} s")
+        elapsed = time.time() - start_time
+        status_text.text(f"Analyse läuft... {elapsed:.2f} s")
 
-    # Vorhersage
-    with st.spinner("Auswertung läuft..."):
+    # KI-Analyse
+    with st.spinner("KI analysiert das Bild..."):
         results = classifier(image)
 
     top = results[0]
     label = top['label'].replace("_", " ").title()
     confidence = top['score'] * 100
 
+    # Mapping auf deutsche Namen
     mapping = {
         "Pike": "Hecht", "Zander": "Zander", "Perch": "Flussbarsch",
         "Carp": "Karpfen", "Trout": "Meerforelle", "Bream": "Brassen",
-        "Catfish": "Wels", "Eel": "Aal"
+        "Catfish": "Wels", "Eel": "Aal", "Flatfish": "Scholle", "Roach": "Rotauge"
     }
     fish_name = mapping.get(label, label)
 
     if confidence >= 75:
         st.markdown('<div class="result">', unsafe_allow_html=True)
-        st.success(f"**{fish_name}** erkannt")
+        st.success(f"**Erkannte Art:** {fish_name}")
         st.success(f"**Sicherheit:** {confidence:.1f}%")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        bundesland = st.selectbox("🌍 Bundesland", list(fish_data["bundeslaender"].keys()))
+        bundesland = st.selectbox("🌍 Bundesland auswählen", 
+                                  options=list(fish_data["bundeslaender"].keys()))
 
         info = fish_data["bundeslaender"][bundesland].get(fish_name, {})
         if info:
             c1, c2 = st.columns(2)
-            with c1: st.metric("Mindestmaß", f"{info.get('mindestmass', 0)} cm")
-            with c2: st.metric("Schonzeit", info.get('schonzeit', "Keine"))
+            with c1:
+                st.metric("Mindestmaß", f"{info.get('mindestmass', 0)} cm")
+            with c2:
+                st.metric("Schonzeit", info.get('schonzeit', "Keine"))
     else:
-        st.warning(f"Nur {confidence:.1f}% Sicherheit. Bitte neues Foto versuchen.")
+        st.warning(f"Nur {confidence:.1f}% Sicherheit. Bitte ein klareres Foto versuchen.")
 
-st.caption("FischID • Modern & Praktisch")
+st.markdown("---")
+st.caption("FischID • Modern • Praktisch • Stabil")
